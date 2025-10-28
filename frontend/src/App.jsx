@@ -1,719 +1,1020 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import {
-  FaPlus,
-  FaCheck,
-  FaEdit,
-  FaTrash,
-  FaRobot,
-  FaTasks,
-  FaCalendarAlt,
-  FaExclamationTriangle,
-  FaSync,
-  FaArrowUp,
-  FaArrowDown,
-  FaFilter,
-  FaSearch,
-  FaLightbulb,
-  FaClock,
-  FaListUl
-} from 'react-icons/fa';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const APP_NAME = import.meta.env.VITE_APP_NAME || 'TaskFlow';
 
-// Custom Hooks
-const useApi = () => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+// SVG Icons as React Components
+const UserIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
 
-  const makeRequest = async (requestFn) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await requestFn();
-      return response.data;
-    } catch (err) {
-      const message = err.response?.data?.message || err.message || 'An error occurred';
-      setError(message);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
+const LogOutIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
+
+const BellIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </svg>
+);
+
+const CheckCircleIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const TrashIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <polyline points="3 6 5 6 21 6" />
+    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+  </svg>
+);
+
+const PlusIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+);
+
+const CalendarIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
+
+const AlertTriangleIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const ClockIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const SettingsIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+
+const EyeIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const EyeOffIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+    <line x1="1" y1="1" x2="23" y2="23" />
+  </svg>
+);
+
+const XIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const EditIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+
+const SaveIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+    <polyline points="17 21 17 13 7 13 7 21" />
+    <polyline points="7 3 7 8 15 8" />
+  </svg>
+);
+
+const CameraIcon = ({ size = 24, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" className={className}>
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <circle cx="12" cy="13" r="4" />
+  </svg>
+);
+
+// Custom Toast Component
+const Toast = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const styles = {
+    success: 'bg-green-500 border-green-600',
+    error: 'bg-red-500 border-red-600',
+    warning: 'bg-yellow-500 border-yellow-600',
+    info: 'bg-blue-500 border-blue-600'
   };
-
-  return { loading, error, setError, makeRequest };
-};
-
-const useTasks = () => {
-  const [tasks, setTasks] = useState([]);
-  const { loading, error, setError, makeRequest } = useApi();
-
-  const fetchTasks = async (filters = {}) => {
-    const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        params.append(key, value);
-      }
-    });
-
-    const data = await makeRequest(() => 
-      axios.get(`${API_URL}/tasks?${params}`)
-    );
-    setTasks(data.data || []);
-  };
-
-  const createTask = async (taskData) => {
-    const data = await makeRequest(() => 
-      axios.post(`${API_URL}/tasks`, taskData)
-    );
-    await fetchTasks();
-    return data;
-  };
-
-  const updateTask = async (id, updates) => {
-    const data = await makeRequest(() => 
-      axios.put(`${API_URL}/tasks/${id}`, updates)
-    );
-    await fetchTasks();
-    return data;
-  };
-
-  const deleteTask = async (id) => {
-    const data = await makeRequest(() => 
-      axios.delete(`${API_URL}/tasks/${id}`)
-    );
-    await fetchTasks();
-    return data;
-  };
-
-  const getAiSuggestion = async (prompt) => {
-    const data = await makeRequest(() => 
-      axios.post(`${API_URL}/ai/suggest`, { prompt })
-    );
-    return data.data;
-  };
-
-  return {
-    tasks,
-    loading,
-    error,
-    setError,
-    fetchTasks,
-    createTask,
-    updateTask,
-    deleteTask,
-    getAiSuggestion
-  };
-};
-
-// Components
-const ConnectionStatus = ({ status }) => {
-  const statusConfig = {
-    connected: { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: FaCheck, text: 'Connected' },
-    disconnected: { color: 'bg-rose-100 text-rose-800 border-rose-200', icon: FaExclamationTriangle, text: 'Disconnected' },
-    checking: { color: 'bg-amber-100 text-amber-800 border-amber-200', icon: FaSync, text: 'Checking' }
-  };
-
-  const config = statusConfig[status] || statusConfig.checking;
-  const Icon = config.icon;
 
   return (
-    <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium border ${config.color}`}>
-      <Icon className={status === 'checking' ? 'animate-spin' : ''} size={12} />
-      <span>{config.text}</span>
+    <div className={`fixed top-4 right-4 ${styles[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-in slide-in-from-right fade-in`}>
+      <div className="flex items-center gap-2">
+        <CheckCircleIcon size={18} />
+        <span>{message}</span>
+      </div>
     </div>
   );
 };
 
-const TaskForm = ({ onSubmit, loading, initialData = {} }) => {
-  const [formData, setFormData] = useState({
-    title: initialData.title || '',
-    description: initialData.description || '',
-    priority: initialData.priority || 'medium',
-    dueDate: initialData.dueDate || ''
-  });
+// Confirmation Modal
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirmText, type = 'warning' }) => {
+  if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (formData.title.trim()) {
-      onSubmit(formData);
-      setFormData({ title: '', description: '', priority: 'medium', dueDate: '' });
-    }
+  const styles = {
+    warning: 'bg-yellow-500',
+    danger: 'bg-red-500',
+    info: 'bg-blue-500'
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <label className="block text-sm font-semibold text-slate-700">
-          Task Title
-        </label>
-        <input
-          type="text"
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-          placeholder="What needs to be done?"
-          required
-          disabled={loading}
-        />
-      </div>
-      
-      <div className="space-y-2">
-        <label className="block text-sm font-semibold text-slate-700">
-          Description
-        </label>
-        <textarea
-          value={formData.description}
-          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 resize-none"
-          placeholder="Add some details..."
-          rows="3"
-          disabled={loading}
-        />
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="block text-sm font-semibold text-slate-700">
-            Priority
-          </label>
-          <select
-            value={formData.priority}
-            onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-            disabled={loading}
-          >
-            <option value="low">Low Priority</option>
-            <option value="medium">Medium Priority</option>
-            <option value="high">High Priority</option>
-          </select>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-in fade-in">
+      <div className="bg-white rounded-xl p-6 max-w-md mx-4 animate-in zoom-in">
+        <div className={`${styles[type]} text-white p-3 rounded-lg mb-4`}>
+          <h3 className="text-lg font-semibold">{title}</h3>
         </div>
-        
-        <div className="space-y-2">
-          <label className="block text-sm font-semibold text-slate-700">
-            Due Date
-          </label>
-          <input
-            type="date"
-            value={formData.dueDate}
-            onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-            className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200"
-            disabled={loading}
-          />
-        </div>
-      </div>
-      
-      <button
-        type="submit"
-        disabled={loading || !formData.title.trim()}
-        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-4 rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:from-slate-400 disabled:to-slate-500 disabled:cursor-not-allowed transition-all duration-200 font-semibold flex items-center justify-center shadow-lg shadow-indigo-500/25"
-      >
-        {loading ? (
-          <>
-            <FaSync className="animate-spin mr-2" />
-            Creating Task...
-          </>
-        ) : (
-          <>
-            <FaPlus className="mr-2" />
-            Add New Task
-          </>
-        )}
-      </button>
-    </form>
-  );
-};
-
-const TaskItem = ({ task, onUpdate, onDelete, loading }) => {
-  const priorityConfig = {
-    high: { color: 'bg-rose-100 text-rose-800 border-rose-200', label: 'High Priority' },
-    medium: { color: 'bg-amber-100 text-amber-800 border-amber-200', label: 'Medium Priority' },
-    low: { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', label: 'Low Priority' }
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
-  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !task.completed;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className={`group border-2 rounded-2xl p-6 flex items-start justify-between transition-all duration-200 ${
-        task.completed 
-          ? 'bg-slate-50 border-slate-200' 
-          : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-lg'
-      }`}
-    >
-      <div className="flex items-start space-x-4 flex-1">
-        <button
-          onClick={() => onUpdate(task._id, { completed: !task.completed })}
-          disabled={loading}
-          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mt-1 transition-all duration-200 ${
-            task.completed 
-              ? 'bg-emerald-500 border-emerald-500 text-white' 
-              : 'border-slate-300 hover:border-emerald-500 group-hover:border-slate-400'
-          } disabled:opacity-50`}
-        >
-          {task.completed && <FaCheck className="text-xs" />}
-        </button>
-        
-        <div className="flex-1 space-y-3">
-          <div className="space-y-1">
-            <h3 className={`font-semibold text-lg leading-tight ${
-              task.completed ? 'text-slate-500 line-through' : 'text-slate-800'
-            }`}>
-              {task.title}
-            </h3>
-            
-            {task.description && (
-              <p className="text-slate-600 leading-relaxed">{task.description}</p>
-            )}
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`text-xs px-3 py-1.5 rounded-full border font-medium ${priorityConfig[task.priority].color}`}>
-              {priorityConfig[task.priority].label}
-            </span>
-            
-            {task.dueDate && (
-              <span className={`text-xs px-3 py-1.5 rounded-full border font-medium flex items-center space-x-1 ${
-                isOverdue 
-                  ? 'bg-rose-50 text-rose-700 border-rose-200' 
-                  : 'bg-blue-50 text-blue-700 border-blue-200'
-              }`}>
-                <FaClock size={10} />
-                <span>Due: {formatDate(task.dueDate)}</span>
-              </span>
-            )}
-            
-            <span className="text-xs text-slate-500 px-2 py-1.5">
-              Created: {formatDate(task.createdAt)}
-            </span>
-          </div>
-        </div>
-      </div>
-      
-      <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        {!task.completed && (
+        <p className="text-gray-600 mb-6">{message}</p>
+        <div className="flex gap-3 justify-end">
           <button
-            onClick={() => onUpdate(task._id, { priority: task.priority === 'high' ? 'medium' : 'high' })}
-            disabled={loading}
-            className="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-all duration-200 disabled:opacity-50"
-            title="Change priority"
+            onClick={onClose}
+            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
           >
-            {task.priority === 'high' ? <FaArrowDown size={14} /> : <FaArrowUp size={14} />}
+            Cancel
           </button>
-        )}
-        
-        <button
-          onClick={() => onDelete(task._id)}
-          disabled={loading}
-          className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-all duration-200 disabled:opacity-50"
-          title="Delete task"
-        >
-          <FaTrash size={14} />
-        </button>
-      </div>
-    </motion.div>
-  );
-};
-
-const AiAssistant = ({ onGetSuggestion, loading }) => {
-  const [prompt, setPrompt] = useState('');
-  const [suggestion, setSuggestion] = useState('');
-
-  const handleSubmit = async () => {
-    if (prompt.trim()) {
-      const result = await onGetSuggestion(prompt);
-      setSuggestion(result.suggestion);
-      setPrompt('');
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <label className="block text-sm font-semibold text-slate-700">
-          Ask for Guidance
-        </label>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 resize-none"
-          placeholder="How can I help with your tasks today?"
-          rows="3"
-          disabled={loading}
-        />
-      </div>
-      
-      <button
-        onClick={handleSubmit}
-        disabled={loading || !prompt.trim()}
-        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 px-4 rounded-xl hover:from-purple-700 hover:to-pink-700 disabled:from-slate-400 disabled:to-slate-500 disabled:cursor-not-allowed transition-all duration-200 font-semibold flex items-center justify-center shadow-lg shadow-purple-500/25"
-      >
-        {loading ? (
-          <>
-            <FaSync className="animate-spin mr-2" />
-            Thinking...
-          </>
-        ) : (
-          <>
-            <FaLightbulb className="mr-2" />
-            Get AI Insight
-          </>
-        )}
-      </button>
-      
-      <AnimatePresence>
-        {suggestion && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-2xl p-5"
+          <button
+            onClick={onConfirm}
+            className={`px-4 py-2 text-white rounded-lg transition-colors ${
+              type === 'danger' ? 'bg-red-500 hover:bg-red-600' : 'bg-yellow-500 hover:bg-yellow-600'
+            }`}
           >
-            <div className="flex items-start space-x-3">
-              <div className="bg-purple-100 p-2 rounded-full">
-                <FaRobot className="text-purple-600" size={16} />
-              </div>
-              <p className="text-purple-800 leading-relaxed flex-1">{suggestion}</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            {confirmText}
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
 
-// Main App Component
-function App() {
-  const [connectionStatus, setConnectionStatus] = useState('checking');
-  const [filters, setFilters] = useState({});
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  const {
-    tasks,
-    loading,
-    error,
-    setError,
-    fetchTasks,
-    createTask,
-    updateTask,
-    deleteTask,
-    getAiSuggestion
-  } = useTasks();
+// User Profile Modal
+const UserProfileModal = ({ isOpen, onClose, user, onUpdateProfile, onDeleteAccount }) => {
+  const [editMode, setEditMode] = useState(false);
+  const [profileData, setProfileData] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    checkHealth();
-    fetchTasks();
-  }, []);
+    if (user) {
+      setProfileData(prev => ({
+        ...prev,
+        name: user.name,
+        email: user.email
+      }));
+    }
+  }, [user]);
 
-  const checkHealth = async () => {
+  const handleSave = async () => {
     try {
-      await axios.get(`${API_URL}/health`);
-      setConnectionStatus('connected');
+      await onUpdateProfile(profileData);
+      setEditMode(false);
+      setProfileData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
     } catch (error) {
-      setConnectionStatus('disconnected');
-      setError('Cannot connect to server. Please ensure backend is running.');
+      // Error handled in parent
     }
   };
 
-  const handleCreateTask = async (taskData) => {
-    try {
-      await createTask(taskData);
-    } catch (error) {
-      // Error handled by hook
-    }
-  };
-
-  const handleUpdateTask = async (id, updates) => {
-    try {
-      await updateTask(id, updates);
-    } catch (error) {
-      // Error handled by hook
-    }
-  };
-
-  const handleDeleteTask = async (id) => {
-    if (window.confirm('Are you sure you want to delete this task?')) {
-      try {
-        await deleteTask(id);
-      } catch (error) {
-        // Error handled by hook
-      }
-    }
-  };
-
-  const handleGetAiSuggestion = async (prompt) => {
-    try {
-      return await getAiSuggestion(prompt);
-    } catch (error) {
-      return { suggestion: 'Sorry, I encountered an error. Please try again.' };
-    }
-  };
-
-  const filteredTasks = tasks.filter(task => 
-    task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    task.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const completedCount = tasks.filter(task => task.completed).length;
-  const totalCount = tasks.length;
-  const progressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+  if (!isOpen) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-in fade-in">
+        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 animate-in zoom-in">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">Profile Settings</h2>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <XIcon size={24} />
+            </button>
+          </div>
+
+          {/* Profile Picture Section */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className="relative">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-lg">
+                {user?.name?.charAt(0).toUpperCase()}
+              </div>
+              <button className="absolute -bottom-1 -right-1 bg-gray-700 text-white p-1 rounded-full hover:bg-gray-800 transition-colors">
+                <CameraIcon size={14} />
+              </button>
+            </div>
+            <div>
+              <h3 className="font-semibold">{user?.name}</h3>
+              <p className="text-gray-600 text-sm">{user?.email}</p>
+            </div>
+          </div>
+
+          {/* Edit Form */}
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+              <input
+                type="text"
+                value={profileData.name}
+                onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                disabled={!editMode}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <input
+                type="email"
+                value={profileData.email}
+                onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                disabled={!editMode}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              />
+            </div>
+
+            {editMode && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
+                  <input
+                    type="password"
+                    value={profileData.currentPassword}
+                    onChange={(e) => setProfileData({ ...profileData, currentPassword: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter current password"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
+                  <input
+                    type="password"
+                    value={profileData.newPassword}
+                    onChange={(e) => setProfileData({ ...profileData, newPassword: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter new password"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
+                  <input
+                    type="password"
+                    value={profileData.confirmPassword}
+                    onChange={(e) => setProfileData({ ...profileData, confirmPassword: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-3 pt-4">
+              {!editMode ? (
+                <>
+                  <button
+                    onClick={() => setEditMode(true)}
+                    className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <EditIcon size={18} />
+                    Edit Profile
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="px-4 bg-red-500 text-white py-2 rounded-lg font-semibold hover:bg-red-600 transition-colors flex items-center gap-2"
+                  >
+                    <TrashIcon size={18} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={handleSave}
+                    className="flex-1 bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <SaveIcon size={18} />
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditMode(false);
+                      setProfileData(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
+                    }}
+                    className="px-4 bg-gray-500 text-white py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={onDeleteAccount}
+        title="Delete Account"
+        message="We're sad to see you go! All your data will be permanently deleted. This action cannot be undone."
+        confirmText="Delete Account"
+        type="danger"
+      />
+    </>
+  );
+};
+
+// Notifications Panel
+const NotificationsPanel = ({ isOpen, onClose, notifications }) => {
+  if (!isOpen) return null;
+
+  const getNotificationIcon = (type) => {
+    switch (type) {
+      case 'due': return <AlertTriangleIcon size={16} className="text-red-500" />;
+      case 'upcoming': return <ClockIcon size={16} className="text-yellow-500" />;
+      case 'created': return <CheckCircleIcon size={16} className="text-green-500" />;
+      default: return <BellIcon size={16} className="text-blue-500" />;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-end z-50 animate-in fade-in md:pt-16">
+      <div className="bg-white rounded-xl m-4 w-full max-w-md animate-in slide-in-from-right">
+        <div className="flex justify-between items-center p-4 border-b">
+          <h3 className="text-lg font-semibold">Notifications</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <XIcon size={24} />
+          </button>
+        </div>
+        <div className="max-h-96 overflow-y-auto">
+          {notifications.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <BellIcon size={48} className="mx-auto mb-4 text-gray-300" />
+              <p>No notifications</p>
+            </div>
+          ) : (
+            notifications.map((notification, index) => (
+              <div
+                key={index}
+                className="p-4 border-b hover:bg-gray-50 transition-colors animate-in fade-in"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="flex items-start gap-3">
+                  {getNotificationIcon(notification.type)}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{notification.message}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(notification.timestamp).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    dueDate: '',
+    priority: 'medium'
+  });
+  const [loginData, setLoginData] = useState({
+    email: '',
+    password: '',
+    name: ''
+  });
+  const [isLogin, setIsLogin] = useState(true);
+  const [aiSuggestion, setAiSuggestion] = useState('');
+  const [toast, setToast] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // Add notification
+  const addNotification = (message, type = 'info') => {
+    const newNotification = {
+      id: Date.now(),
+      message,
+      type,
+      timestamp: new Date()
+    };
+    setNotifications(prev => [newNotification, ...prev]);
+  };
+
+  // Show toast and notification
+  const showToastMessage = (message, type = 'success') => {
+    setToast({ message, type });
+    addNotification(message, type);
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchUserProfile(token);
+      fetchTasks(token);
+      startNotificationCheck();
+    }
+  }, []);
+
+  const startNotificationCheck = () => {
+    setInterval(() => {
+      checkDueTasks();
+    }, 60000);
+  };
+
+  const checkDueTasks = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const response = await axios.get(`${API_URL}/tasks/upcoming`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      response.data.upcomingTasks.forEach(task => {
+        const dueDate = new Date(task.dueDate);
+        const now = new Date();
+        const hoursUntilDue = (dueDate - now) / (1000 * 60 * 60);
+        
+        if (hoursUntilDue <= 2 && hoursUntilDue > 0) {
+          showToastMessage(`Task "${task.title}" is due in ${Math.round(hoursUntilDue * 60)} minutes!`, 'warning');
+        } else if (hoursUntilDue <= 24 && hoursUntilDue > 0) {
+          addNotification(`Task "${task.title}" is due in ${Math.round(hoursUntilDue)} hours`, 'upcoming');
+        } else if (hoursUntilDue <= 0 && hoursUntilDue > -1) {
+          showToastMessage(`Task "${task.title}" is due now!`, 'error');
+          addNotification(`Task "${task.title}" is overdue!`, 'due');
+        }
+      });
+    } catch (error) {
+      console.error('Error checking due tasks:', error);
+    }
+  };
+
+  const fetchUserProfile = async (token) => {
+    try {
+      const response = await axios.get(`${API_URL}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUser(response.data.user);
+    } catch (error) {
+      localStorage.removeItem('token');
+    }
+  };
+
+  const fetchTasks = async (token) => {
+    try {
+      const response = await axios.get(`${API_URL}/tasks`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setTasks(response.data.tasks);
+      addNotification('Tasks loaded successfully', 'created');
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    }
+  };
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    try {
+      const endpoint = isLogin ? 'login' : 'register';
+      const response = await axios.post(`${API_URL}/auth/${endpoint}`, loginData);
+      
+      localStorage.setItem('token', response.data.token);
+      setUser(response.data.user);
+      fetchTasks(response.data.token);
+      showToastMessage(isLogin ? 'Login successful!' : 'Registration successful!');
+      addNotification(`Welcome ${response.data.user.name}!`, 'created');
+    } catch (error) {
+      showToastMessage(error.response?.data?.message || 'Authentication failed', 'error');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    setTasks([]);
+    setNotifications([]);
+    showToastMessage('Logged out successfully!');
+    setShowLogoutConfirm(false);
+  };
+
+  const handleTaskSubmit = async (e) => {
+    e.preventDefault();
+    const token = localStorage.getItem('token');
+    
+    try {
+      const response = await axios.post(`${API_URL}/tasks`, formData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setTasks([...tasks, response.data.task]);
+      setFormData({ title: '', description: '', dueDate: '', priority: 'medium' });
+      showToastMessage('Task created successfully!');
+      addNotification(`Task "${response.data.task.title}" created`, 'created');
+    } catch (error) {
+      showToastMessage('Failed to create task', 'error');
+    }
+  };
+
+  const getAiSuggestion = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await axios.get(`${API_URL}/tasks/ai-suggestions`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAiSuggestion(response.data.suggestion);
+      showToastMessage('AI suggestion generated!');
+    } catch (error) {
+      showToastMessage('Failed to get AI suggestion', 'error');
+    }
+  };
+
+  const updateTaskStatus = async (taskId, completed) => {
+    const token = localStorage.getItem('token');
+    try {
+      await axios.put(`${API_URL}/tasks/${taskId}`, 
+        { completed }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      const updatedTasks = tasks.map(task => 
+        task._id === taskId ? { ...task, completed } : task
+      );
+      setTasks(updatedTasks);
+      
+      const task = tasks.find(t => t._id === taskId);
+      if (completed) {
+        showToastMessage(`Task "${task.title}" completed!`, 'success');
+        addNotification(`Completed task: "${task.title}"`, 'created');
+      } else {
+        showToastMessage(`Task "${task.title}" marked as incomplete`, 'info');
+      }
+    } catch (error) {
+      showToastMessage('Failed to update task', 'error');
+    }
+  };
+
+  const deleteTask = async (taskId) => {
+    const token = localStorage.getItem('token');
+    try {
+      const task = tasks.find(t => t._id === taskId);
+      await axios.delete(`${API_URL}/tasks/${taskId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setTasks(tasks.filter(task => task._id !== taskId));
+      showToastMessage('Task deleted successfully!');
+      addNotification(`Deleted task: "${task.title}"`, 'created');
+    } catch (error) {
+      showToastMessage('Failed to delete task', 'error');
+    }
+  };
+
+  const updateUserProfile = async (profileData) => {
+    const token = localStorage.getItem('token');
+    try {
+      const response = await axios.put(`${API_URL}/auth/profile`, profileData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setUser(response.data.user);
+      showToastMessage('Profile updated successfully!');
+      return true;
+    } catch (error) {
+      showToastMessage(error.response?.data?.message || 'Failed to update profile', 'error');
+      return false;
+    }
+  };
+
+  const deleteUserAccount = async () => {
+    const token = localStorage.getItem('token');
+    try {
+      await axios.delete(`${API_URL}/auth/account`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      localStorage.removeItem('token');
+      setUser(null);
+      setTasks([]);
+      setNotifications([]);
+      showToastMessage('Account deleted successfully. We will miss you!', 'info');
+    } catch (error) {
+      showToastMessage('Failed to delete account', 'error');
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md animate-in fade-in">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-2xl mx-auto mb-4">
+              ✓
+            </div>
+            <h1 className="text-3xl font-bold text-gray-800">TaskFlow</h1>
+            <p className="text-gray-600 mt-2">Your intelligent task companion</p>
+          </div>
+          
+          <form onSubmit={handleAuth} className="space-y-6">
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  placeholder="Enter your name"
+                  value={loginData.name}
+                  onChange={(e) => setLoginData({...loginData, name: e.target.value})}
+                />
+              </div>
+            )}
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="Enter your email"
+                value={loginData.email}
+                onChange={(e) => setLoginData({...loginData, email: e.target.value})}
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                placeholder="Enter your password"
+                value={loginData.password}
+                onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+              />
+            </div>
+            
+            <button
+              type="submit"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+            >
+              {isLogin ? 'Sign In' : 'Create Account'}
+            </button>
+          </form>
+          
+          <div className="text-center mt-6">
+            <button
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+            >
+              {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Sign In"}
+            </button>
+          </div>
+        </div>
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type} 
+            onClose={() => setToast(null)} 
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-3 rounded-2xl shadow-lg">
-                <FaTasks className="text-white text-xl" />
+      <header className="bg-white shadow-sm border-b sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
+                ✓
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-                  {APP_NAME}
-                </h1>
-                <p className="text-slate-500 text-sm">Organize your work, amplify your productivity</p>
+                <h1 className="text-xl font-bold text-gray-900">TaskFlow</h1>
+                <p className="text-gray-600 text-sm">Welcome back, {user.name}!</p>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <ConnectionStatus status={connectionStatus} />
-              <div className="text-right">
-                <div className="text-sm font-semibold text-slate-700">
-                  {completedCount} / {totalCount} completed
-                </div>
-                <div className="w-24 bg-slate-200 rounded-full h-2 mt-1">
-                  <div 
-                    className="bg-gradient-to-r from-emerald-500 to-green-500 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${progressPercentage}%` }}
-                  ></div>
-                </div>
-              </div>
+            
+            <div className="flex items-center gap-2">
+              {/* Notifications Bell */}
+              <button
+                onClick={() => setShowNotifications(true)}
+                className="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200"
+              >
+                <BellIcon size={20} />
+                {notifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center animate-pulse">
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+
+              {/* User Profile */}
+              <button
+                onClick={() => setShowProfileModal(true)}
+                className="flex items-center gap-2 p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200"
+              >
+                <UserIcon size={20} />
+                <span className="hidden sm:block">Profile</span>
+              </button>
+
+              {/* Logout */}
+              <button
+                onClick={() => setShowLogoutConfirm(true)}
+                className="flex items-center gap-2 p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+              >
+                <LogOutIcon size={20} />
+                <span className="hidden sm:block">Logout</span>
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Error Alert */}
-      <AnimatePresence>
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4"
-          >
-            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <FaExclamationTriangle className="text-rose-600 flex-shrink-0" />
-                <div>
-                  <p className="text-rose-800 font-semibold">Connection Issue</p>
-                  <p className="text-rose-700 text-sm">{error}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setError(null)}
-                className="text-rose-600 hover:text-rose-800 text-lg font-semibold"
-              >
-                ×
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
-          
-          {/* Left Column - Task Input & AI Assistant */}
-          <div className="xl:col-span-1 space-y-6">
-            
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Sidebar - Task Form & AI Assistant */}
+          <div className="lg:col-span-1 space-y-6">
             {/* Task Creation Card */}
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6"
-            >
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="bg-indigo-100 p-2 rounded-xl">
-                  <FaPlus className="text-indigo-600" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-800">Create Task</h2>
+            <div className="bg-white rounded-xl shadow-sm p-6 animate-in fade-in">
+              <div className="flex items-center gap-2 mb-4">
+                <PlusIcon size={20} className="text-blue-600" />
+                <h2 className="text-xl font-semibold">Create New Task</h2>
               </div>
-              <TaskForm 
-                onSubmit={handleCreateTask}
-                loading={loading}
-              />
-            </motion.div>
-
-            {/* AI Assistant Card */}
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6"
-            >
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="bg-purple-100 p-2 rounded-xl">
-                  <FaRobot className="text-purple-600" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-800">AI Assistant</h2>
-              </div>
-              <AiAssistant 
-                onGetSuggestion={handleGetAiSuggestion}
-                loading={loading}
-              />
-            </motion.div>
-          </div>
-
-          {/* Right Column - Task List */}
-          <div className="xl:col-span-3">
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6"
-            >
-              {/* Task List Header */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-8 space-y-4 lg:space-y-0">
-                <div className="flex items-center space-x-3">
-                  <div className="bg-slate-100 p-2 rounded-xl">
-                    <FaListUl className="text-slate-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-800">Your Tasks</h2>
-                    <p className="text-slate-500 text-sm">
-                      {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''} found
-                    </p>
-                  </div>
+              <form onSubmit={handleTaskSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Title
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
+                    value={formData.title}
+                    onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  />
                 </div>
                 
-                <div className="flex flex-col sm:flex-row gap-3">
-                  {/* Search */}
-                  <div className="relative">
-                    <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={14} />
-                    <input
-                      type="text"
-                      placeholder="Search tasks..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full sm:w-48"
-                    />
-                  </div>
-                  
-                  {/* Filters */}
-                  <div className="flex space-x-2">
-                    <select
-                      value={filters.priority || ''}
-                      onChange={(e) => setFilters({ ...filters, priority: e.target.value || undefined })}
-                      className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                    >
-                      <option value="">All Priorities</option>
-                      <option value="high">High Priority</option>
-                      <option value="medium">Medium Priority</option>
-                      <option value="low">Low Priority</option>
-                    </select>
-                    
-                    <select
-                      value={filters.completed || ''}
-                      onChange={(e) => setFilters({ ...filters, completed: e.target.value || undefined })}
-                      className="px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
-                    >
-                      <option value="">All Tasks</option>
-                      <option value="false">Active</option>
-                      <option value="true">Completed</option>
-                    </select>
-                    
-                    <button
-                      onClick={() => fetchTasks(filters)}
-                      disabled={loading}
-                      className="flex items-center space-x-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all duration-200 text-sm font-semibold text-slate-700 disabled:opacity-50"
-                    >
-                      <FaSync className={loading ? 'animate-spin' : ''} />
-                      <span>Refresh</span>
-                    </button>
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
+                    rows="3"
+                    value={formData.description}
+                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Due Date & Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
+                    value={formData.dueDate}
+                    onChange={(e) => setFormData({...formData, dueDate: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Priority
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 transition-all"
+                    value={formData.priority}
+                    onChange={(e) => setFormData({...formData, priority: e.target.value})}
+                  >
+                    <option value="low">Low Priority</option>
+                    <option value="medium">Medium Priority</option>
+                    <option value="high">High Priority</option>
+                  </select>
+                </div>
+                
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  <PlusIcon size={18} />
+                  Add Task
+                </button>
+              </form>
+            </div>
+
+            {/* AI Assistant Card */}
+            <div className="bg-white rounded-xl shadow-sm p-6 animate-in fade-in delay-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <SettingsIcon size={20} className="text-purple-600" />
+                  <h2 className="text-xl font-semibold">AI Assistant</h2>
+                </div>
+                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+              </div>
+              
+              <button
+                onClick={getAiSuggestion}
+                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-blue-700 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] mb-4"
+              >
+                Get Smart Suggestions
+              </button>
+              
+              {aiSuggestion && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 animate-in fade-in">
+                  <p className="text-blue-800 text-sm">{aiSuggestion}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Main Content - Tasks List */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl shadow-sm p-6 animate-in fade-in delay-200">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold">Your Tasks</h2>
+                  <p className="text-gray-600 text-sm">Manage your tasks efficiently</p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                    {tasks.filter(t => !t.completed).length} pending
+                  </span>
+                  <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                    {tasks.filter(t => t.completed).length} completed
+                  </span>
                 </div>
               </div>
               
-              {/* Task List */}
-              <div className="space-y-4">
-                <AnimatePresence mode="wait">
-                  {loading && filteredTasks.length === 0 ? (
-                    <motion.div
-                      key="loading"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="text-center py-12"
+              {tasks.length === 0 ? (
+                <div className="text-center py-12 animate-in fade-in">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CalendarIcon size={32} className="text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No tasks yet</h3>
+                  <p className="text-gray-600 max-w-sm mx-auto">
+                    Create your first task to get started with your productivity journey.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {tasks.map((task, index) => (
+                    <div
+                      key={task._id}
+                      className={`border rounded-lg p-4 transition-all duration-200 animate-in fade-in ${
+                        task.completed 
+                          ? 'bg-green-50 border-green-200' 
+                          : 'bg-white border-gray-200 hover:shadow-md hover:border-gray-300'
+                      }`}
+                      style={{ animationDelay: `${index * 50}ms` }}
                     >
-                      <FaSync className="animate-spin text-3xl text-indigo-600 mx-auto mb-3" />
-                      <p className="text-slate-500">Loading your tasks...</p>
-                    </motion.div>
-                  ) : connectionStatus === 'disconnected' ? (
-                    <motion.div
-                      key="disconnected"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="text-center py-12"
-                    >
-                      <FaExclamationTriangle className="text-3xl text-rose-400 mx-auto mb-3" />
-                      <p className="text-slate-700 font-semibold">Cannot connect to server</p>
-                      <p className="text-slate-500 text-sm mt-1">Please ensure the backend server is running</p>
-                    </motion.div>
-                  ) : filteredTasks.length === 0 ? (
-                    <motion.div
-                      key="empty"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="text-center py-12"
-                    >
-                      <FaCalendarAlt className="text-3xl text-slate-300 mx-auto mb-3" />
-                      <p className="text-slate-500">No tasks found</p>
-                      <p className="text-slate-400 text-sm mt-1">
-                        {searchTerm ? 'Try adjusting your search' : 'Create your first task to get started'}
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="tasks"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="space-y-4"
-                    >
-                      {filteredTasks.map((task) => (
-                        <TaskItem
-                          key={task._id}
-                          task={task}
-                          onUpdate={handleUpdateTask}
-                          onDelete={handleDeleteTask}
-                          loading={loading}
-                        />
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start gap-3 mb-2">
+                            <button
+                              onClick={() => updateTaskStatus(task._id, !task.completed)}
+                              className={`mt-1 flex-shrink-0 w-5 h-5 rounded border-2 transition-all duration-200 ${
+                                task.completed
+                                  ? 'bg-green-500 border-green-500 text-white'
+                                  : 'border-gray-300 hover:border-green-500'
+                              }`}
+                            >
+                              {task.completed && <CheckCircleIcon size={16} className="text-white" />}
+                            </button>
+                            <div className="flex-1 min-w-0">
+                              <h3 className={`font-semibold truncate ${
+                                task.completed ? 'line-through text-gray-500' : 'text-gray-900'
+                              }`}>
+                                {task.title}
+                              </h3>
+                              {task.description && (
+                                <p className="text-gray-600 text-sm mt-1 line-clamp-2">
+                                  {task.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 ml-8">
+                            <div className="flex items-center gap-1">
+                              <CalendarIcon size={14} />
+                              <span>Due: {new Date(task.dueDate).toLocaleString()}</span>
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              task.priority === 'high' 
+                                ? 'bg-red-100 text-red-800' 
+                                : task.priority === 'medium' 
+                                ? 'bg-yellow-100 text-yellow-800' 
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {task.priority} priority
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => deleteTask(task._id)}
+                          className="flex-shrink-0 text-gray-400 hover:text-red-500 p-2 transition-all duration-200 transform hover:scale-110 ml-2"
+                        >
+                          <TrashIcon size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <ConfirmationModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleLogout}
+        title="Confirm Logout"
+        message="Are you sure you want to logout? You'll need to sign in again to access your tasks."
+        confirmText="Logout"
+      />
+
+      <UserProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        user={user}
+        onUpdateProfile={updateUserProfile}
+        onDeleteAccount={deleteUserAccount}
+      />
+
+      <NotificationsPanel
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+        notifications={notifications}
+      />
+
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
     </div>
   );
 }
