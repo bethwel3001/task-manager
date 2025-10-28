@@ -1,359 +1,246 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-// Middleware Configuration
-app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173'],
-  credentials: true
-}));
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Database Connection
-const connectDatabase = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log('Database connected successfully');
-  } catch (error) {
-    console.error('Database connection failed:', error.message);
-    process.exit(1);
-  }
-};
-
-// Database Event Handlers
-mongoose.connection.on('disconnected', () => {
-  console.log('Database disconnected');
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/ai-taskmanager', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
 });
 
-mongoose.connection.on('error', (error) => {
-  console.error('Database error:', error);
-});
+// User Schema
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+}, { timestamps: true });
 
 // Task Schema
 const taskSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: [true, 'Task title is required'],
-    trim: true,
-    maxlength: [200, 'Title cannot exceed 200 characters']
-  },
-  description: {
-    type: String,
-    trim: true,
-    maxlength: [1000, 'Description cannot exceed 1000 characters']
-  },
-  priority: {
-    type: String,
-    enum: ['low', 'medium', 'high'],
-    default: 'medium'
-  },
-  completed: {
-    type: Boolean,
-    default: false
-  },
-  dueDate: {
-    type: Date
-  }
-}, {
-  timestamps: true
-});
+  title: { type: String, required: true },
+  description: { type: String },
+  dueDate: { type: Date, required: true },
+  priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
+  completed: { type: Boolean, default: false },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+}, { timestamps: true });
 
+const User = mongoose.model('User', userSchema);
 const Task = mongoose.model('Task', taskSchema);
 
-// Utility Functions
-const handleError = (res, error, defaultMessage = 'An error occurred') => {
-  console.error('Error:', error);
-  
-  if (error.name === 'ValidationError') {
-    const errors = Object.values(error.errors).map(err => err.message);
-    return res.status(400).json({
-      success: false,
-      message: 'Validation failed',
-      errors
-    });
+// Auth Middleware
+const authMiddleware = async (req, res, next) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Token is not valid' });
   }
-  
-  if (error.name === 'CastError') {
-    return res.status(400).json({
-      success: false,
-      message: 'Invalid ID format'
-    });
-  }
-  
-  res.status(500).json({
-    success: false,
-    message: defaultMessage,
-    error: process.env.NODE_ENV === 'development' ? error.message : undefined
-  });
 };
 
-const validateTaskData = (data) => {
-  const errors = [];
-  
-  if (!data.title || data.title.trim().length === 0) {
-    errors.push('Task title is required');
-  }
-  
-  if (data.title && data.title.length > 200) {
-    errors.push('Title cannot exceed 200 characters');
-  }
-  
-  if (data.description && data.description.length > 1000) {
-    errors.push('Description cannot exceed 1000 characters');
-  }
-  
-  if (data.priority && !['low', 'medium', 'high'].includes(data.priority)) {
-    errors.push('Priority must be low, medium, or high');
-  }
-  
-  return errors;
-};
+// Routes
 
-// API Routes
-
-// Health Check
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Server is healthy',
-    timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  });
-});
-
-// Get all tasks
-app.get('/api/tasks', async (req, res) => {
+// Auth Routes
+app.post('/api/auth/register', async (req, res) => {
   try {
-    const { completed, priority, sort = '-createdAt' } = req.query;
-    
-    let filter = {};
-    if (completed !== undefined) filter.completed = completed === 'true';
-    if (priority) filter.priority = priority;
-    
-    const tasks = await Task.find(filter).sort(sort);
-    
-    res.json({
-      success: true,
-      data: tasks,
-      count: tasks.length
-    });
-  } catch (error) {
-    handleError(res, error, 'Failed to fetch tasks');
-  }
-});
+    const { name, email, password } = req.body;
 
-// Get single task
-app.get('/api/tasks/:id', async (req, res) => {
-  try {
-    const task = await Task.findById(req.params.id);
-    
-    if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: 'Task not found'
-      });
+    // Check if user exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
     }
-    
-    res.json({
-      success: true,
-      data: task
-    });
-  } catch (error) {
-    handleError(res, error, 'Failed to fetch task');
-  }
-});
 
-// Create task
-app.post('/api/tasks', async (req, res) => {
-  try {
-    const validationErrors = validateTaskData(req.body);
-    if (validationErrors.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: validationErrors
-      });
-    }
-    
-    const taskData = {
-      title: req.body.title.trim(),
-      description: req.body.description?.trim() || '',
-      priority: req.body.priority || 'medium',
-      dueDate: req.body.dueDate
-    };
-    
-    const task = new Task(taskData);
-    const savedTask = await task.save();
-    
-    res.status(201).json({
-      success: true,
-      message: 'Task created successfully',
-      data: savedTask
-    });
-  } catch (error) {
-    handleError(res, error, 'Failed to create task');
-  }
-});
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
-// Update task
-app.put('/api/tasks/:id', async (req, res) => {
-  try {
-    const validationErrors = validateTaskData(req.body);
-    if (validationErrors.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Validation failed',
-        errors: validationErrors
-      });
-    }
-    
-    const task = await Task.findByIdAndUpdate(
-      req.params.id,
-      {
-        title: req.body.title.trim(),
-        description: req.body.description?.trim() || '',
-        priority: req.body.priority,
-        completed: req.body.completed,
-        dueDate: req.body.dueDate
-      },
-      { new: true, runValidators: true }
+    // Create user
+    const user = new User({ name, email, password: hashedPassword });
+    await user.save();
+
+    // Generate token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
     );
-    
+
+    res.status(201).json({
+      token,
+      user: { id: user._id, name: user.name, email: user.email }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Find user
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Generate token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: { id: user._id, name: user.name, email: user.email }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.get('/api/auth/me', authMiddleware, (req, res) => {
+  res.json({ user: { id: req.user._id, name: req.user.name, email: req.user.email } });
+});
+
+// Task Routes
+app.get('/api/tasks', authMiddleware, async (req, res) => {
+  try {
+    const tasks = await Task.find({ userId: req.user._id }).sort({ createdAt: -1 });
+    res.json({ tasks });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.post('/api/tasks', authMiddleware, async (req, res) => {
+  try {
+    const { title, description, dueDate, priority } = req.body;
+
+    const task = new Task({
+      title,
+      description,
+      dueDate,
+      priority,
+      userId: req.user._id
+    });
+
+    await task.save();
+    res.status(201).json({ task });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.put('/api/tasks/:id', authMiddleware, async (req, res) => {
+  try {
+    const task = await Task.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user._id },
+      req.body,
+      { new: true }
+    );
+
     if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: 'Task not found'
-      });
+      return res.status(404).json({ message: 'Task not found' });
     }
-    
-    res.json({
-      success: true,
-      message: 'Task updated successfully',
-      data: task
-    });
+
+    res.json({ task });
   } catch (error) {
-    handleError(res, error, 'Failed to update task');
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Delete task
-app.delete('/api/tasks/:id', async (req, res) => {
+app.delete('/api/tasks/:id', authMiddleware, async (req, res) => {
   try {
-    const task = await Task.findByIdAndDelete(req.params.id);
-    
+    const task = await Task.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+
     if (!task) {
-      return res.status(404).json({
-        success: false,
-        message: 'Task not found'
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    res.json({ message: 'Task deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+app.get('/api/tasks/upcoming', authMiddleware, async (req, res) => {
+  try {
+    const now = new Date();
+    const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    const upcomingTasks = await Task.find({
+      userId: req.user._id,
+      completed: false,
+      dueDate: { $gte: now, $lte: twentyFourHoursFromNow }
+    }).sort({ dueDate: 1 });
+
+    res.json({ upcomingTasks });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// AI Suggestions Route
+app.get('/api/tasks/ai-suggestions', authMiddleware, async (req, res) => {
+  try {
+    const tasks = await Task.find({ userId: req.user._id, completed: false });
+    
+    if (tasks.length === 0) {
+      return res.json({ 
+        suggestion: "You don't have any pending tasks. Great job! Consider adding some new tasks to stay productive." 
       });
     }
-    
-    res.json({
-      success: true,
-      message: 'Task deleted successfully'
-    });
-  } catch (error) {
-    handleError(res, error, 'Failed to delete task');
-  }
-});
 
-// AI Suggestions
-app.post('/api/ai/suggest', async (req, res) => {
-  try {
-    const { prompt } = req.body;
+    const overdueTasks = tasks.filter(task => new Date(task.dueDate) < new Date());
+    const highPriorityTasks = tasks.filter(task => task.priority === 'high' && !task.completed);
     
-    if (!prompt || prompt.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Prompt is required'
-      });
+    let suggestion = "";
+    
+    if (overdueTasks.length > 0) {
+      suggestion = `You have ${overdueTasks.length} overdue task(s). Focus on completing "${overdueTasks[0].title}" first to catch up.`;
+    } else if (highPriorityTasks.length > 0) {
+      suggestion = `You have ${highPriorityTasks.length} high-priority task(s). Consider working on "${highPriorityTasks[0].title}" next.`;
+    } else {
+      const nextTask = tasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate))[0];
+      suggestion = `Your next task "${nextTask.title}" is due on ${new Date(nextTask.dueDate).toLocaleDateString()}. Plan your time accordingly!`;
     }
-    
-    // Simulate AI processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const suggestions = {
-      prioritize: "Focus on high-priority tasks first. Use the Eisenhower Matrix to categorize tasks by urgency and importance.",
-      overwhelmed: "Break large tasks into smaller steps. Use the Pomodoro technique (25min work, 5min break) to maintain focus.",
-      schedule: "Time-block your calendar. Allocate specific hours for deep work and group similar tasks together.",
-      procrastination: "Start with the easiest task to build momentum. Use the 2-minute rule - if it takes less than 2 minutes, do it now.",
-      default: "Review your tasks regularly. Celebrate completed tasks and adjust priorities as needed."
-    };
-    
-    const cleanPrompt = prompt.toLowerCase().trim();
-    let response = suggestions.default;
-    
-    if (cleanPrompt.includes('prioritize') || cleanPrompt.includes('priority')) {
-      response = suggestions.prioritize;
-    } else if (cleanPrompt.includes('overwhelm') || cleanPrompt.includes('too much')) {
-      response = suggestions.overwhelmed;
-    } else if (cleanPrompt.includes('schedule') || cleanPrompt.includes('time')) {
-      response = suggestions.schedule;
-    } else if (cleanPrompt.includes('procrastinate') || cleanPrompt.includes('delay')) {
-      response = suggestions.procrastination;
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        suggestion: response,
-        prompt: cleanPrompt
-      }
-    });
+
+    res.json({ suggestion });
   } catch (error) {
-    handleError(res, error, 'Failed to generate suggestion');
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// REMOVED ALL PROBLEMATIC ROUTE PATTERNS
-// Express will handle 404 automatically
-
-// Global Error Handler
-app.use((error, req, res, next) => {
-  console.error('Unhandled error:', error);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error'
-  });
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
-
-// Start Server
-const startServer = async () => {
-  try {
-    await connectDatabase();
-    
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Environment: ${process.env.NODE_ENV}`);
-      console.log(`Database: ${process.env.MONGODB_URI}`);
-      console.log('API endpoints available at:');
-      console.log('  GET  /api/health');
-      console.log('  GET  /api/tasks');
-      console.log('  POST /api/tasks');
-      console.log('  PUT  /api/tasks/:id');
-      console.log('  DELETE /api/tasks/:id');
-      console.log('  POST /api/ai/suggest');
-    });
-  } catch (error) {
-    console.error('Failed to start server:', error);
-    process.exit(1);
-  }
-};
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  await mongoose.connection.close();
-  process.exit(0);
-});
-
-startServer();
